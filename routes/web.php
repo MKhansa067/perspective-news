@@ -105,7 +105,7 @@ Route::get('/force-reset-password', function () {
 
     // 2. Set Password Baru (Memastikan Hash sesuai environment server)
     $passwordBaru = 'password123';
-    $user->password = Hash::make($passwordBaru);
+    $user->password = $passwordBaru;
     $user->save();
 
     // 3. Pastikan Kategori Ada (Biar web tidak error)
