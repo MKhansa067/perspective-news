@@ -10,6 +10,7 @@ use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
 use App\Models\Category;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /*
@@ -113,4 +114,42 @@ Route::get('/force-reset-password', function () {
     Category::firstOrCreate(['slug' => 'bisnis'], ['name' => 'Bisnis']);
 
     return "BERHASIL! Password untuk <b>{$user->email}</b> telah di-reset menjadi: <b>{$passwordBaru}</b>. <br><br> <a href='/login'>KLIK DISINI UNTUK LOGIN</a>";
-});
+    });
+
+    Route::get('/debug-db-fix', function () {
+        // 1. Cek Koneksi & Database yang dipakai
+        $dbName = DB::connection()->getDatabaseName();
+        $host = config('database.connections.mysql.host');
+        $count = User::count();
+        
+        // 2. Cek apakah Admin ada?
+        $admin = User::where('email', 'admin@perspective.com')->first();
+        
+        $status = "Database Aktif: <b>$dbName</b> di Host: <b>$host</b><br>";
+        $status .= "Jumlah Total User: <b>$count</b><br><br>";
+
+        if ($admin) {
+            // Jika ada, kita reset passwordnya biar yakin
+            $admin->password = 'password123'; // Karena ada casting 'hashed', ini otomatis di-hash
+            $admin->save();
+            $status .= "✅ User Admin DITEMUKAN. Password di-reset ulang ke: <b>password123</b>.";
+        } else {
+            // Jika TIDAK ADA, kita buat paksa sekarang juga
+            try {
+                User::create([
+                    'name' => 'Super Admin',
+                    'email' => 'admin@perspective.com',
+                    'password' => 'password123', // Otomatis hash karena casting
+                    'role' => 'admin',
+                    'email_verified_at' => now(),
+                ]);
+                $status .= "⚠️ User Admin TIDAK DITEMUKAN, tapi barusan BERHASIL DIBUAT SECARA PAKSA.<br>";
+                $status .= "Password: <b>password123</b>";
+            } catch (\Exception $e) {
+                $status .= "❌ GAGAL MEMBUAT USER: " . $e->getMessage();
+            }
+        }
+    
+        $status .= "<br><br><a href='/login'>KLIK DISINI UNTUK LOGIN</a>";
+        return $status;
+    });
