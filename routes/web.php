@@ -8,7 +8,9 @@ use App\Http\Controllers\Admin\PostController as AdminPostController;
 use App\Http\Controllers\Admin\UserController;
 use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
+use App\Models\Category;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,7 +50,7 @@ Route::get('/auth/google/callback', function () {
         'name' => $googleUser->getName(),
         'google_id' => $googleUser->getId(),
         'password' => null, // Login google tidak butuh password
-        // 'role' tetap default 'user' kecuali diubah manual di database
+        'role' => 'user', // Default role
     ]);
  
     Auth::login($user);
@@ -77,5 +79,38 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
     // Manajemen User (Hanya list dan delete simpel)
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+});
 
+
+/*
+|--------------------------------------------------------------------------
+| EMERGENCY ROUTE: FORCE RESET PASSWORD
+|--------------------------------------------------------------------------
+| Gunakan ini untuk memperbaiki login admin di Production (Railway)
+| HAPUS route ini setelah berhasil login!
+*/
+
+Route::get('/force-reset-password', function () {
+    // 1. Cari User Admin
+    $user = User::where('email', 'admin@perspective.com')->first();
+
+    if (!$user) {
+        // Jika belum ada, buat baru
+        $user = new User();
+        $user->name = 'Super Admin';
+        $user->email = 'admin@perspective.com';
+        $user->role = 'admin';
+        $user->email_verified_at = now();
+    }
+
+    // 2. Set Password Baru (Memastikan Hash sesuai environment server)
+    $passwordBaru = 'password123';
+    $user->password = Hash::make($passwordBaru);
+    $user->save();
+
+    // 3. Pastikan Kategori Ada (Biar web tidak error)
+    Category::firstOrCreate(['slug' => 'teknologi'], ['name' => 'Teknologi']);
+    Category::firstOrCreate(['slug' => 'bisnis'], ['name' => 'Bisnis']);
+
+    return "BERHASIL! Password untuk <b>{$user->email}</b> telah di-reset menjadi: <b>{$passwordBaru}</b>. <br><br> <a href='/login'>KLIK DISINI UNTUK LOGIN</a>";
 });
