@@ -26,8 +26,7 @@
     </style>
     
     <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
-
-    @laravelPWA
+    
 </head>
 <body>
 
