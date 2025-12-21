@@ -53,8 +53,9 @@ class LoginRequest extends FormRequest
         Log::error('>>> LOGIN DEBUG START <<<', [
             '1. Input Email' => $email,
             '2. User Ditemukan?' => $user ? 'YA (ID: ' . $user->id . ')' : 'TIDAK',
-            '3. Hash Password di DB' => $user ? $user->password : 'N/A',
-            '4. Hasil Cek Password Manual' => $user ? (password_verify($password, $user->password) ? 'COCOK (TRUE)' : 'TIDAK COCOK (FALSE)') : 'User Null',
+            '3. DATABASE DRIVER (PENTING)' => \Illuminate\Support\Facades\Config::get('database.default'), // Apakah 'mysql' atau 'sqlite'?
+            '4. DATABASE HOST' => \Illuminate\Support\Facades\Config::get('database.connections.mysql.host'),
+            '5. NAMA DATABASE AKTIF' => \Illuminate\Support\Facades\DB::connection()->getDatabaseName(),
         ]);
         // --- SELESAI DEBUGGING ---
 
