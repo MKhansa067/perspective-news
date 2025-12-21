@@ -12,6 +12,7 @@ use App\Models\Category;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Artisan; // <--- PENTING: Import Artisan
 
 /*
 |--------------------------------------------------------------------------
@@ -85,66 +86,38 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
 
 /*
 |--------------------------------------------------------------------------
-| DIAGNOSTIC & FIX TOOL (JALUR PENYELAMATAN)
+| EMERGENCY ROUTE: FORCE MIGRATION & SEED
 |--------------------------------------------------------------------------
-| Akses route ini untuk melihat isi database dan memperbaiki admin
+| Gunakan ini karena database di Railway kosong (0 tabel).
+| Ini akan membuat tabel users, posts, dll secara paksa.
 */
 
-Route::get('/fix-admin-now', function () {
-    // 1. Cek isi tabel users
+Route::get('/setup-database-now', function () {
     try {
-        $allUsers = User::all();
-        $dbName = DB::connection()->getDatabaseName();
-        $dbHost = config('database.connections.mysql.host');
+        // 1. Jalankan Migrate Fresh (Hapus semua tabel & buat ulang)
+        // --force wajib ada agar bisa jalan di production
+        // --seed wajib ada agar Admin langsung dibuat
+        Artisan::call('migrate:fresh', [
+            '--seed' => true,
+            '--force' => true 
+        ]);
+        
+        $output = Artisan::output();
+        
+        return "<h1>✅ DATABASE BERHASIL DIBANGUN ULANG!</h1>" .
+               "<p>Tabel 'users' dan lain-lain sudah dibuat.</p>" .
+               "<pre style='background: #eee; padding: 10px;'>$output</pre>" . 
+               "<br><br>" .
+               "<h3>Admin Login Info:</h3>" .
+               "<ul>" .
+               "<li>Email: <b>admin@perspective.com</b></li>" .
+               "<li>Password: <b>password123</b></li>" .
+               "</ul>" .
+               "<a href='/login' style='font-size:20px; font-weight:bold; background-color: yellow; padding: 10px;'>-> KLIK SINI UNTUK LOGIN <-</a>";
+               
     } catch (\Exception $e) {
-        return "<h1>KONEKSI DATABASE GAGAL!</h1><p>" . $e->getMessage() . "</p>";
+        return "<h1 style='color:red'>❌ ERROR SAAT MIGRASI</h1>" .
+               "<p>Pastikan variable DB_CONNECTION=mysql sudah diset di Railway.</p>" .
+               "<p>Error detail: " . $e->getMessage() . "</p>";
     }
-    
-    $output = "<h1>Diagnosa Database</h1>";
-    $output .= "<p>Database: <b>$dbName</b> | Host: <b>$dbHost</b></p>";
-    $output .= "<hr>";
-    
-    if ($allUsers->isEmpty()) {
-        $output .= "<h3 style='color:red'>⚠️ TABEL USERS KOSONG! (Aplikasi Web melihat database kosong)</h3>";
-    } else {
-        $output .= "<h3 style='color:blue'>ℹ️ Ditemukan " . $allUsers->count() . " user di database ini:</h3><ul>";
-        foreach($allUsers as $u) {
-            $output .= "<li>Email: <b>{$u->email}</b> | Role: <b>{$u->role}</b> | ID: {$u->id}</li>";
-        }
-        $output .= "</ul>";
-    }
-    $output .= "<hr>";
-
-    // 2. EKSEKUSI PERBAIKAN
-    $adminEmail = 'admin@perspective.com';
-    $fixedPassword = 'password123';
-    
-    $admin = User::where('email', $adminEmail)->first();
-
-    if ($admin) {
-        // Jika ada, paksa update password
-        $admin->password = $fixedPassword; // Laravel 11 otomatis hash via casting
-        $admin->save();
-        $output .= "<h2>✅ UPDATE: User Admin ditemukan & Password di-reset!</h2>";
-    } else {
-        // Jika tidak ada, paksa buat baru
-        try {
-            User::create([
-                'name' => 'Super Admin',
-                'email' => $adminEmail,
-                'password' => $fixedPassword,
-                'role' => 'admin',
-                'email_verified_at' => now(),
-            ]);
-            $output .= "<h2>✅ CREATE: User Admin BARU berhasil dibuat!</h2>";
-        } catch (\Exception $e) {
-            $output .= "<h2 style='color:red'>❌ ERROR CREATE: " . $e->getMessage() . "</h2>";
-        }
-    }
-
-    $output .= "<p>Silakan coba login sekarang dengan:</p>";
-    $output .= "<ul><li>Email: <b>$adminEmail</b></li><li>Password: <b>$fixedPassword</b></li></ul>";
-    $output .= "<br><a href='/login' style='font-size:20px; font-weight:bold; background-color: yellow; padding: 10px;'>-> KLIK SINI UNTUK LOGIN <-</a>";
-
-    return $output;
 });
