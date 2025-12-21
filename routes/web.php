@@ -85,71 +85,66 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
 
 /*
 |--------------------------------------------------------------------------
-| EMERGENCY ROUTE: FORCE RESET PASSWORD
+| DIAGNOSTIC & FIX TOOL (JALUR PENYELAMATAN)
 |--------------------------------------------------------------------------
-| Gunakan ini untuk memperbaiki login admin di Production (Railway)
-| HAPUS route ini setelah berhasil login!
+| Akses route ini untuk melihat isi database dan memperbaiki admin
 */
 
-Route::get('/force-reset-password', function () {
-    // 1. Cari User Admin
-    $user = User::where('email', 'admin@perspective.com')->first();
+Route::get('/fix-admin-now', function () {
+    // 1. Cek isi tabel users
+    try {
+        $allUsers = User::all();
+        $dbName = DB::connection()->getDatabaseName();
+        $dbHost = config('database.connections.mysql.host');
+    } catch (\Exception $e) {
+        return "<h1>KONEKSI DATABASE GAGAL!</h1><p>" . $e->getMessage() . "</p>";
+    }
+    
+    $output = "<h1>Diagnosa Database</h1>";
+    $output .= "<p>Database: <b>$dbName</b> | Host: <b>$dbHost</b></p>";
+    $output .= "<hr>";
+    
+    if ($allUsers->isEmpty()) {
+        $output .= "<h3 style='color:red'>⚠️ TABEL USERS KOSONG! (Aplikasi Web melihat database kosong)</h3>";
+    } else {
+        $output .= "<h3 style='color:blue'>ℹ️ Ditemukan " . $allUsers->count() . " user di database ini:</h3><ul>";
+        foreach($allUsers as $u) {
+            $output .= "<li>Email: <b>{$u->email}</b> | Role: <b>{$u->role}</b> | ID: {$u->id}</li>";
+        }
+        $output .= "</ul>";
+    }
+    $output .= "<hr>";
 
-    if (!$user) {
-        // Jika belum ada, buat baru
-        $user = new User();
-        $user->name = 'Super Admin';
-        $user->email = 'admin@perspective.com';
-        $user->role = 'admin';
-        $user->email_verified_at = now();
+    // 2. EKSEKUSI PERBAIKAN
+    $adminEmail = 'admin@perspective.com';
+    $fixedPassword = 'password123';
+    
+    $admin = User::where('email', $adminEmail)->first();
+
+    if ($admin) {
+        // Jika ada, paksa update password
+        $admin->password = $fixedPassword; // Laravel 11 otomatis hash via casting
+        $admin->save();
+        $output .= "<h2>✅ UPDATE: User Admin ditemukan & Password di-reset!</h2>";
+    } else {
+        // Jika tidak ada, paksa buat baru
+        try {
+            User::create([
+                'name' => 'Super Admin',
+                'email' => $adminEmail,
+                'password' => $fixedPassword,
+                'role' => 'admin',
+                'email_verified_at' => now(),
+            ]);
+            $output .= "<h2>✅ CREATE: User Admin BARU berhasil dibuat!</h2>";
+        } catch (\Exception $e) {
+            $output .= "<h2 style='color:red'>❌ ERROR CREATE: " . $e->getMessage() . "</h2>";
+        }
     }
 
-    // 2. Set Password Baru (Memastikan Hash sesuai environment server)
-    $passwordBaru = 'password123';
-    $user->password = $passwordBaru;
-    $user->save();
+    $output .= "<p>Silakan coba login sekarang dengan:</p>";
+    $output .= "<ul><li>Email: <b>$adminEmail</b></li><li>Password: <b>$fixedPassword</b></li></ul>";
+    $output .= "<br><a href='/login' style='font-size:20px; font-weight:bold; background-color: yellow; padding: 10px;'>-> KLIK SINI UNTUK LOGIN <-</a>";
 
-    // 3. Pastikan Kategori Ada (Biar web tidak error)
-    Category::firstOrCreate(['slug' => 'teknologi'], ['name' => 'Teknologi']);
-    Category::firstOrCreate(['slug' => 'bisnis'], ['name' => 'Bisnis']);
-
-    return "BERHASIL! Password untuk <b>{$user->email}</b> telah di-reset menjadi: <b>{$passwordBaru}</b>. <br><br> <a href='/login'>KLIK DISINI UNTUK LOGIN</a>";
-    });
-
-    Route::get('/debug-db-fix', function () {
-        // 1. Cek Koneksi & Database yang dipakai
-        $dbName = DB::connection()->getDatabaseName();
-        $host = config('database.connections.mysql.host');
-        $count = User::count();
-        
-        // 2. Cek apakah Admin ada?
-        $admin = User::where('email', 'admin@perspective.com')->first();
-        
-        $status = "Database Aktif: <b>$dbName</b> di Host: <b>$host</b><br>";
-        $status .= "Jumlah Total User: <b>$count</b><br><br>";
-
-        if ($admin) {
-            // Jika ada, kita reset passwordnya biar yakin
-            $admin->password = 'password123'; // Karena ada casting 'hashed', ini otomatis di-hash
-            $admin->save();
-            $status .= "✅ User Admin DITEMUKAN. Password di-reset ulang ke: <b>password123</b>.";
-        } else {
-            // Jika TIDAK ADA, kita buat paksa sekarang juga
-            try {
-                User::create([
-                    'name' => 'Super Admin',
-                    'email' => 'admin@perspective.com',
-                    'password' => 'password123', // Otomatis hash karena casting
-                    'role' => 'admin',
-                    'email_verified_at' => now(),
-                ]);
-                $status .= "⚠️ User Admin TIDAK DITEMUKAN, tapi barusan BERHASIL DIBUAT SECARA PAKSA.<br>";
-                $status .= "Password: <b>password123</b>";
-            } catch (\Exception $e) {
-                $status .= "❌ GAGAL MEMBUAT USER: " . $e->getMessage();
-            }
-        }
-    
-        $status .= "<br><br><a href='/login'>KLIK DISINI UNTUK LOGIN</a>";
-        return $status;
-    });
+    return $output;
+});
