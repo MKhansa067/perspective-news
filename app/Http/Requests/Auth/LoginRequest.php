@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log; // Import Log
 
 class LoginRequest extends FormRequest
 {
@@ -40,6 +41,22 @@ class LoginRequest extends FormRequest
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
+
+        // --- MULAI DEBUGGING (CCTV) ---
+        // Kita rekam apa yang sebenarnya terjadi saat login
+        $email = $this->input('email');
+        $password = $this->input('password');
+        
+        // Cek user manual di DB
+        $user = \App\Models\User::where('email', $email)->first();
+
+        Log::error('>>> LOGIN DEBUG START <<<', [
+            '1. Input Email' => $email,
+            '2. User Ditemukan?' => $user ? 'YA (ID: ' . $user->id . ')' : 'TIDAK',
+            '3. Hash Password di DB' => $user ? $user->password : 'N/A',
+            '4. Hasil Cek Password Manual' => $user ? (password_verify($password, $user->password) ? 'COCOK (TRUE)' : 'TIDAK COCOK (FALSE)') : 'User Null',
+        ]);
+        // --- SELESAI DEBUGGING ---
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
