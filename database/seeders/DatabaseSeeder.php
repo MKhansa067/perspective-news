@@ -12,19 +12,19 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // 1. Buat Akun Admin
-        User::create([
+        User::factory()->create([
             'name' => 'Super Admin',
-            'email' => 'admin@news.com', // Email untuk login
-            'password' => Hash::make('password'), // Password: password
+            'email' => 'admin@perspective.com', // Email untuk login
+            'password' => 'password123', // Password: password
             'role' => 'admin', // Role Admin
             'email_verified_at' => now(),
         ]);
 
         // 2. Buat Akun User Biasa (untuk tes)
-        User::create([
+        User::factory()->create([
             'name' => 'Pembaca Setia',
-            'email' => 'user@news.com',
-            'password' => Hash::make('password'),
+            'email' => 'user@perspective.com',
+            'password' => 'password123',
             'role' => 'user',
         ]);
 
@@ -32,7 +32,7 @@ class DatabaseSeeder extends Seeder
         $categories = ['Teknologi', 'Olahraga', 'Politik', 'Hiburan', 'Otomotif'];
         
         foreach ($categories as $cat) {
-            Category::create([
+            Category::firstOrCreate([
                 'name' => $cat,
                 'slug' => \Illuminate\Support\Str::slug($cat),
             ]);
