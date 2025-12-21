@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\Public\HomeController;
 use App\Http\Controllers\Public\PostController as PublicPostController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -8,11 +9,8 @@ use App\Http\Controllers\Admin\PostController as AdminPostController;
 use App\Http\Controllers\Admin\UserController;
 use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
-use App\Models\Category;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Artisan; // <--- PENTING: Import Artisan
 
 /*
 |--------------------------------------------------------------------------
@@ -86,38 +84,56 @@ Route::middleware(['auth', 'is_admin'])->prefix('admin')->name('admin.')->group(
 
 /*
 |--------------------------------------------------------------------------
-| EMERGENCY ROUTE: FORCE MIGRATION & SEED
+| SECRET ROUTE: REGISTER ADMIN MANUAL
 |--------------------------------------------------------------------------
-| Gunakan ini karena database di Railway kosong (0 tabel).
-| Ini akan membuat tabel users, posts, dll secara paksa.
+| Akses route ini untuk mendaftar sebagai Admin secara resmi lewat Web.
+| Karena lewat web, enkripsi password dijamin 100% cocok.
 */
 
-Route::get('/setup-database-now', function () {
-    try {
-        // 1. Jalankan Migrate Fresh (Hapus semua tabel & buat ulang)
-        // --force wajib ada agar bisa jalan di production
-        // --seed wajib ada agar Admin langsung dibuat
-        Artisan::call('migrate:fresh', [
-            '--seed' => true,
-            '--force' => true 
-        ]);
-        
-        $output = Artisan::output();
-        
-        return "<h1>✅ DATABASE BERHASIL DIBANGUN ULANG!</h1>" .
-               "<p>Tabel 'users' dan lain-lain sudah dibuat.</p>" .
-               "<pre style='background: #eee; padding: 10px;'>$output</pre>" . 
-               "<br><br>" .
-               "<h3>Admin Login Info:</h3>" .
-               "<ul>" .
-               "<li>Email: <b>admin@perspective.com</b></li>" .
-               "<li>Password: <b>password123</b></li>" .
-               "</ul>" .
-               "<a href='/login' style='font-size:20px; font-weight:bold; background-color: yellow; padding: 10px;'>-> KLIK SINI UNTUK LOGIN <-</a>";
-               
-    } catch (\Exception $e) {
-        return "<h1 style='color:red'>❌ ERROR SAAT MIGRASI</h1>" .
-               "<p>Pastikan variable DB_CONNECTION=mysql sudah diset di Railway.</p>" .
-               "<p>Error detail: " . $e->getMessage() . "</p>";
-    }
+// 1. Tampilkan Form Register Admin
+Route::get('/secret-admin-register', function () {
+    return '
+    <div style="display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+        <form action="/secret-admin-register" method="POST" style="border:1px solid #ccc; padding:20px; border-radius:8px; width:300px;">
+            <input type="hidden" name="_token" value="'.csrf_token().'">
+            <h2 style="text-align:center;">Daftar Super Admin</h2>
+            
+            <label>Nama Lengkap</label><br>
+            <input type="text" name="name" required style="width:100%; margin-bottom:10px; padding:5px;">
+            
+            <label>Email Admin</label><br>
+            <input type="email" name="email" required style="width:100%; margin-bottom:10px; padding:5px;">
+            
+            <label>Password</label><br>
+            <input type="password" name="password" required style="width:100%; margin-bottom:20px; padding:5px;">
+            
+            <button type="submit" style="width:100%; padding:10px; background:blue; color:white; border:none; cursor:pointer;">DAFTAR & LOGIN</button>
+        </form>
+    </div>
+    ';
+});
+
+// 2. Proses Data Register Admin
+Route::post('/secret-admin-register', function (Request $request) {
+    // Validasi sederhana
+    $request->validate([
+        'name' => 'required',
+        'email' => 'required|email|unique:users,email',
+        'password' => 'required|min:4'
+    ]);
+
+    // Buat User Baru dengan Role ADMIN
+    $user = User::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'password' => $request->password, // Laravel otomatis hash via Model Casting
+        'role' => 'admin', // <--- INI KUNCINYA
+        'email_verified_at' => now(),
+    ]);
+
+    // Langsung Login Otomatis
+    Auth::login($user);
+
+    // Redirect ke Dashboard
+    return redirect()->route('admin.dashboard');
 });
